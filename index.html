@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Navy Nurse: Digital Guardian</title>
+    
+    <!-- เปลี่ยนฟอนต์ภาษาไทยเป็น Prompt เพื่อความสวยงามและอ่านง่าย โดดเด่นขึ้น -->
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Prompt:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- MediaPipe Libraries สำหรับ AI ตรวจจับมือ -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+    <style>
+        :root {
+            --cyan-glow: rgba(0, 255, 255, 0.7);
+            --red-glow: rgba(255, 51, 102, 0.7);
+            --bg-color: #030812;
+        }
+        body {
+            margin: 0; overflow: hidden; background-color: var(--bg-color);
+            font-family: 'Prompt', sans-serif; /* ใช้ฟอนต์ Prompt เป็นหลัก */
+            color: white; user-select: none;
+        }
+        .font-tech { font-family: 'Rajdhani', sans-serif; }
+
+        .camera-bg {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: #050a15;
+            background-image: radial-gradient(circle at 50% 50%, #0a1930 0%, #000 100%);
+            z-index: -3;
+        }
+        .ar-grid {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background-image: linear-gradient(rgba(0, 255, 255, 0.05) 1px, transparent 1px),
+                              linear-gradient(90deg, rgba(0, 255, 255, 0.05) 1px, transparent 1px);
+            background-size: 40px 40px; z-index: -2; pointer-events: none;
+        }
+        .glass-panel {
+            background: rgba(2, 8, 25, 0.4);
+            backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(0, 255, 255, 0.2);
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.1), inset 0 0 20px rgba(0, 255, 255, 0.05);
+            border-radius: 12px;
+        }
+        .glow-text { text-shadow: 0 0 8px var(--cyan-glow); }
+
+        .avatar-container {
+            position: relative; height: 120px; display: flex; justify-content: center; align-items: flex-end;
+            margin-bottom: -5px; z-index: 10;
+        }
+        .holo-cartoon {
+            width: 100px; height: auto;
+            filter: drop-shadow(0 0 15px rgba(0,255,255,0.8)) sepia(1) hue-rotate(150deg) saturate(3) opacity(0.9);
+            animation: float 4s ease-in-out infinite;
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        .scanline {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(to bottom, transparent 50%, rgba(0, 255, 255, 0.1) 51%, transparent 51%);
+            background-size: 100% 4px; z-index: 11; pointer-events: none;
+            animation: scan 10s linear infinite;
+        }
+        @keyframes scan { 0% { background-position: 0 0; } 100% { background-position: 0 100vh; } }
+        
+        .situational-icon {
+            position: absolute; top: 20px; right: 30px; font-size: 2.5rem; color: #ff3366;
+            animation: pulse-icon 2s infinite; text-shadow: 0 0 15px #ff3366;
+        }
+        @keyframes pulse-icon { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.2); opacity: 0.7; } }
+
+        .ai-core-container {
+            position: relative; width: 180px; height: 180px; display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 0.5rem auto;
+        }
+        .ai-ring { position: absolute; border-radius: 50%; border: 1px solid transparent; pointer-events: none; }
+        .ring-1 { width: 100%; height: 100%; border-top: 2px solid #00ffff; border-bottom: 2px solid #00ffff; animation: spin 10s linear infinite; box-shadow: 0 0 15px rgba(0,255,255,0.2) inset; }
+        .ring-2 { width: 85%; height: 85%; border-left: 2px dashed rgba(0, 255, 255, 0.6); border-right: 2px dashed rgba(0, 255, 255, 0.6); animation: spin-reverse 15s linear infinite; }
+        .ring-3 { width: 70%; height: 70%; border: 1px solid rgba(0, 255, 255, 0.3); border-top: 2px solid #00ffff; animation: spin 6s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite; }
+        
+        .drop-zone {
+            width: 110px; height: 110px; border-radius: 50%;
+            background: radial-gradient(circle, rgba(255,51,102,0.2) 0%, rgba(0,0,0,0) 70%);
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.3s ease; position: relative; z-index: 20;
+            border: 3px dashed #ff3366;
+            box-shadow: 0 0 20px rgba(255,51,102,0.4), inset 0 0 15px rgba(255,51,102,0.3);
+        }
+        .drop-zone.drag-over {
+            background: radial-gradient(circle, rgba(255,51,102,0.6) 0%, rgba(255,51,102,0.1) 70%);
+            box-shadow: 0 0 60px #ff3366, inset 0 0 30px #ff3366; 
+            transform: scale(1.15); border: 3px solid #ff3366;
+        }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        @keyframes spin-reverse { 100% { transform: rotate(-360deg); } }
+
+        .draggable-card {
+            cursor: grab; transition: all 0.2s ease; position: relative; z-index: 10;
+            background: linear-gradient(90deg, rgba(0,255,255,0.08) 0%, rgba(0,0,0,0.5) 100%);
+            border-left: 4px solid #00ffff; border-top: 1px solid rgba(0,255,255,0.2);
+            border-bottom: 1px solid rgba(0,255,255,0.2); border-right: 1px solid rgba(0,255,255,0.1);
+            clip-path: polygon(0 0, 96% 0, 100% 20%, 100% 100%, 4% 100%, 0 80%);
+            backdrop-filter: blur(8px); padding: 12px 16px; min-height: 70px;
+        }
+        .draggable-card:hover {
+            background: linear-gradient(90deg, rgba(0,255,255,0.2) 0%, rgba(0,0,0,0.7) 100%);
+            transform: translateX(-15px); box-shadow: -5px 0 20px rgba(0, 255, 255, 0.3);
+        }
+        .is-dragging {
+            opacity: 0.8; transform: scale(1.05) !important; box-shadow: 0 0 40px rgba(0, 255, 255, 0.8);
+            z-index: 100 !important; cursor: grabbing;
+        }
+
+        .data-stream {
+            font-family: 'Rajdhani', monospace; font-size: 12px; color: rgba(0, 255, 255, 0.5);
+            position: absolute; pointer-events: none; letter-spacing: 2px;
+        }
+        .blink { animation: blinker 1s linear infinite; }
+        @keyframes blinker { 50% { opacity: 0; } }
+
+        /* Game Over Screen */
+        #game-over-screen { display: none; }
+        
+        .webcam-feed {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+            object-fit: cover; z-index: -4; transform: scaleX(-1); 
+        }
+        .output_canvas {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+            z-index: -3; pointer-events: none;
+        }
+        #hand-cursor {
+            position: fixed; width: 24px; height: 24px;
+            background-color: transparent;
+            border: 2px solid #ff3366; border-radius: 50%;
+            pointer-events: none; z-index: 9999; display: none;
+            transform: translate(-50%, -50%); 
+            box-shadow: 0 0 15px #ff3366, inset 0 0 5px #ff3366;
+            transition: width 0.1s, height 0.1s, border-color 0.2s, box-shadow 0.2s;
+        }
+        #hand-cursor.pinching {
+            width: 34px; height: 34px;
+            border: 4px solid #00ffff; box-shadow: 0 0 25px #00ffff, inset 0 0 15px #00ffff;
+            background-color: rgba(0, 255, 255, 0.2);
+        }
+        .cam-btn {
+            background: rgba(0, 255, 255, 0.1); border: 1px solid #00ffff; color: #00ffff;
+            padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; transition: all 0.2s;
+        }
+        .cam-btn:hover { background: rgba(0, 255, 255, 0.3); box-shadow: 0 0 15px rgba(0,255,255,0.5); }
+    </style>
+</head>
+<body class="w-screen h-screen flex flex-col p-4 md:p-6 relative">
+
+    <video id="webcam" class="webcam-feed" autoplay playsinline></video>
+    <canvas id="output_canvas" class="output_canvas"></canvas>
+    <div id="hand-cursor"></div>
+
+    <div class="camera-bg" id="camera-bg-fallback"></div>
+    <div class="ar-grid"></div>
+    <div class="scanline"></div>
+    
+    <div class="data-stream left-2 top-20" style="writing-mode: vertical-rl;">SYS.INIT... OK | VITAL.SYNC... OK</div>
+    <div class="data-stream right-2 bottom-20" style="writing-mode: vertical-lr;">MISSION PROGRESS: <span id="mission-progress-text">1/10</span></div>
+
+    <header class="flex justify-between items-start mb-4 w-full max-w-7xl mx-auto z-10">
+        <div class="flex items-center gap-4">
+            <div class="w-16 h-16 rounded-full border-2 border-cyan-400 flex items-center justify-center bg-cyan-900/40 relative">
+                <i class="fa-solid fa-user-nurse text-2xl text-cyan-300"></i>
+            </div>
+            <div>
+                <div class="font-tech text-xs text-cyan-400 tracking-[0.2em]">OPERATOR: NAVY NURSE CADET</div>
+                <!-- ชื่อถูกสุ่มด้วย JS -->
+                <div id="player-name-display" class="font-tech font-bold text-2xl tracking-widest glow-text text-white">GENERATING...</div>
+                <div class="flex items-center gap-2 mt-1">
+                    <div id="player-id-display" class="font-tech text-xs text-gray-300">ID: TH-NVY-XXXX</div>
+                    <button id="start-cam-btn" onclick="startCamera()" class="cam-btn font-tech ml-3 font-bold">
+                        <i class="fa-solid fa-video"></i> ACTIVATE CAMERA
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="glass-panel p-4 flex flex-col gap-2 w-72 hidden md:flex font-tech">
+            <div class="flex flex-col gap-1">
+                <div class="flex justify-between text-xs text-cyan-200 font-bold">
+                    <span>SCORE (คะแนนรวม)</span>
+                    <span id="score-total" class="text-lg">0</span>
+                </div>
+                <div class="w-full h-2 bg-gray-800 rounded-full overflow-hidden">
+                    <div id="bar-score" class="h-full bg-cyan-400 w-[0%] transition-all duration-500"></div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main id="game-main" class="flex-1 flex flex-col md:flex-row items-center justify-center gap-4 md:gap-8 w-full max-w-7xl mx-auto z-10 relative">
+        
+        <div class="w-full max-w-lg flex flex-col items-center">
+            
+            <div class="avatar-container w-full">
+                <!-- SVG Anime-style Nurse Avatar -->
+                <svg class="holo-cartoon" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="100" cy="100" r="90" fill="url(#glow-grad)" opacity="0.4"/>
+                    <defs>
+                        <radialGradient id="glow-grad" cx="50%" cy="50%" r="50%">
+                            <stop offset="0%" stop-color="#00ffff" stop-opacity="0.8"/>
+                            <stop offset="100%" stop-color="#00ffff" stop-opacity="0"/>
+                        </radialGradient>
+                    </defs>
+                    <path d="M 50 100 C 30 140, 40 190, 70 190 C 80 190, 90 175, 100 175 C 110 175, 120 190, 130 190 C 160 190, 170 140, 150 100 Z" fill="#003333"/>
+                    <path d="M 65 150 L 135 150 L 155 200 L 45 200 Z" fill="#e0f7fa" stroke="#00bcd4" stroke-width="2"/>
+                    <path d="M 85 150 L 100 165 L 115 150" fill="#ffffff" stroke="#00bcd4" stroke-width="2"/>
+                    <path d="M 92 165 L 108 165 L 100 178 Z" fill="#ff3366"/>
+                    <rect x="65" y="85" width="70" height="65" rx="32" fill="#ffe0b2"/>
+                    <path d="M 60 105 C 70 70, 130 70, 140 105 C 130 85, 70 85, 60 105 Z" fill="#006064"/>
+                    <path d="M 55 100 C 80 60, 120 60, 145 100 C 150 75, 50 75, 55 100 Z" fill="#004d40"/>
+                    <path d="M 70 55 L 130 55 L 115 30 L 85 30 Z" fill="#ffffff" stroke="#00bcd4" stroke-width="2"/>
+                    <rect x="95" y="37" width="10" height="10" fill="#ff3366" />
+                    <rect x="90" y="42" width="20" height="5" fill="#ff3366" />
+                    <ellipse cx="82" cy="120" rx="9" ry="13" fill="#006064" />
+                    <circle cx="80" cy="115" r="4" fill="#ffffff" />
+                    <circle cx="85" cy="126" r="2" fill="#ffffff" />
+                    <ellipse cx="118" cy="120" rx="9" ry="13" fill="#006064" />
+                    <circle cx="116" cy="115" r="4" fill="#ffffff" />
+                    <circle cx="121" cy="126" r="2" fill="#ffffff" />
+                    <ellipse cx="72" cy="132" rx="7" ry="3" fill="#ff8a80" opacity="0.7"/>
+                    <ellipse cx="128" cy="132" rx="7" ry="3" fill="#ff8a80" opacity="0.7"/>
+                    <path d="M 95 138 Q 100 145 105 138" stroke="#006064" stroke-width="2" fill="none" stroke-linecap="round"/>
+                    <path d="M 65 155 C 40 170, 50 190, 70 185" fill="none" stroke="#b2ebf2" stroke-width="14" stroke-linecap="round"/>
+                    <path d="M 135 155 C 160 170, 150 190, 130 185" fill="none" stroke="#b2ebf2" stroke-width="14" stroke-linecap="round"/>
+                    <circle cx="70" cy="185" r="7" fill="#ffe0b2"/>
+                    <circle cx="130" cy="185" r="7" fill="#ffe0b2"/>
+                </svg>
+                <i id="scenario-icon" class="fa-solid fa-spinner fa-spin situational-icon"></i>
+            </div>
+
+            <!-- กล่องโจทย์ข้อความ (ขยายขนาดตัวอักษร) -->
+            <div class="glass-panel p-4 w-full relative mb-2">
+                <div class="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-cyan-500"></div>
+                <div class="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-cyan-500"></div>
+                
+                <div class="flex items-center justify-between border-b border-cyan-500/30 pb-2 mb-2">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-network-wired text-cyan-400 text-sm"></i>
+                        <h2 class="font-tech text-base font-bold text-cyan-100 tracking-widest">N.I.N.A. MISSION: <span id="mission-number">01</span></h2>
+                    </div>
+                    <span id="mission-tag" class="text-xs font-tech bg-cyan-600/80 px-3 py-1 rounded text-white font-bold">LOADING...</span>
+                </div>
+
+                <div class="text-base leading-relaxed text-gray-100 min-h-[90px] flex flex-col justify-center">
+                    <!-- ขนาดฟอนต์โจทย์ใหญ่ขึ้นเป็น text-lg -->
+                    <p id="scenario-text" class="text-white bg-black/50 p-3 rounded border-l-4 border-cyan-500 text-[17px] shadow-inner">
+                        กำลังเชื่อมต่อระบบฐานข้อมูล AI...
+                    </p>
+                </div>
+            </div>
+
+            <!-- AI Core & Drop Zone -->
+            <div class="ai-core-container">
+                <div class="ai-ring ring-1"></div>
+                <div class="ai-ring ring-2"></div>
+                <div class="ai-ring ring-3"></div>
+                
+                <div id="decision-zone" class="drop-zone text-center">
+                    <div class="flex flex-col items-center pointer-events-none">
+                        <i class="fa-solid fa-hand-holding-medical text-3xl text-white drop-shadow-[0_0_8px_rgba(255,51,102,0.8)] mb-1"></i>
+                        <span class="font-tech text-[10px] font-bold tracking-[0.2em] text-white drop-shadow-[0_0_8px_rgba(255,51,102,0.8)] mt-1">DROP HERE</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="w-full max-w-lg flex flex-col gap-3 relative">
+            <div id="drag-cards-container" class="w-full flex flex-col gap-3 w-full transition-opacity duration-300">
+                <div class="text-right hidden md:block mb-1 font-tech">
+                    <h3 class="text-cyan-400 tracking-[0.2em] font-bold text-sm">GESTURE INTERFACE</h3>
+                    <p class="text-xs text-gray-400">กำมือเพื่อหยิบการ์ด แล้วลากไปวางที่แกน N.I.N.A.</p>
+                </div>
+
+                <!-- การ์ดตัวเลือก ขยายขนาดและเพิ่ม padding -->
+                <div class="draggable-card" draggable="true" id="card-a" data-answer="A">
+                    <div class="flex items-center gap-3 pointer-events-none">
+                        <div class="font-tech text-cyan-400 text-3xl font-bold border-r-2 border-gray-600/50 pr-3 w-10 text-center">A</div>
+                        <div class="flex-1">
+                            <div id="text-choice-a" class="text-[15px] leading-snug text-gray-100 font-medium">Loading...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="draggable-card !border-l-yellow-400" draggable="true" id="card-b" data-answer="B">
+                    <div class="flex items-center gap-3 pointer-events-none">
+                        <div class="font-tech text-yellow-400 text-3xl font-bold border-r-2 border-gray-600/50 pr-3 w-10 text-center">B</div>
+                        <div class="flex-1">
+                            <div id="text-choice-b" class="text-[15px] leading-snug text-gray-100 font-medium">Loading...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="draggable-card !border-l-green-400" draggable="true" id="card-c" data-answer="C">
+                    <div class="flex items-center gap-3 pointer-events-none">
+                        <div class="font-tech text-green-400 text-3xl font-bold border-r-2 border-gray-600/50 pr-3 w-10 text-center">C</div>
+                        <div class="flex-1">
+                            <div id="text-choice-c" class="text-[15px] leading-snug text-gray-100 font-medium">Loading...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div id="game-over-screen" class="flex-1 flex flex-col items-center justify-center z-50 absolute inset-0 bg-black/95 backdrop-blur-lg">
+        <div class="text-center max-w-2xl p-10 glass-panel border-t-4 border-t-cyan-400 shadow-[0_0_50px_rgba(0,255,255,0.2)]">
+            <i class="fa-solid fa-medal text-7xl text-yellow-400 mb-6 drop-shadow-[0_0_15px_rgba(255,215,0,0.8)]"></i>
+            <h1 class="font-tech text-5xl font-bold text-cyan-300 mb-4">SIMULATION COMPLETE</h1>
+            <p class="text-gray-200 text-lg mb-8 font-light">นักเรียนพยาบาล <span id="final-name" class="font-bold text-cyan-200"></span><br>คุณได้ผ่านการทดสอบการตัดสินใจเชิงจริยธรรมและไซเบอร์เสร็จสิ้น</p>
+            
+            <div class="bg-black/40 rounded-xl p-6 mb-8 border border-cyan-900">
+                <div class="text-xl font-tech text-gray-400 mb-2">FINAL SCORE EVALUATION</div>
+                <div class="text-6xl font-tech font-bold text-cyan-400 drop-shadow-[0_0_10px_rgba(0,255,255,0.5)]">
+                    <span id="final-score-text">0</span> <span class="text-3xl text-gray-500">/ 100</span>
+                </div>
+            </div>
+            
+            <button onclick="location.reload()" class="px-10 py-4 bg-cyan-600 hover:bg-cyan-500 text-white font-tech font-bold text-xl tracking-widest rounded-lg transition-all shadow-[0_0_20px_rgba(0,255,255,0.4)] hover:shadow-[0_0_30px_rgba(0,255,255,0.6)] hover:scale-105">
+                <i class="fa-solid fa-rotate-right mr-2"></i> GENERATE NEW MISSION
+            </button>
+        </div>
+    </div>
+
+    <div id="result-modal" class="fixed inset-0 bg-black/85 backdrop-blur-sm flex justify-center items-center opacity-0 pointer-events-none transition-opacity duration-300 z-50">
+        <div class="glass-panel p-8 max-w-2xl w-full transform scale-95 transition-transform duration-300 border-t-4" id="modal-content">
+            <div class="text-center mb-6">
+                <div id="modal-icon-bg" class="w-20 h-20 rounded-full mx-auto flex items-center justify-center mb-4">
+                    <i id="modal-icon" class="fa-solid fa-check text-4xl"></i>
+                </div>
+                <h2 id="modal-title" class="font-tech text-3xl font-bold tracking-widest text-white mb-1">RESULT</h2>
+            </div>
+            <div class="bg-black/50 p-6 rounded-lg border border-gray-700 mb-6 shadow-inner">
+                <h4 class="font-tech text-cyan-400 text-sm mb-3 border-b border-gray-700 pb-2 tracking-wider">SYSTEM LOG ANALYSIS</h4>
+                <!-- ขยายขนาดตัวอักษรคำอธิบายเป็น text-lg -->
+                <p id="modal-description" class="text-lg text-gray-100 font-medium leading-relaxed"></p>
+            </div>
+            <button onclick="nextMission()" class="w-full py-4 bg-cyan-600 hover:bg-cyan-500 text-white font-tech text-xl font-bold tracking-widest rounded-lg transition-colors border border-cyan-400 hover:shadow-[0_0_20px_rgba(0,255,255,0.5)]">
+                PROCEED TO NEXT <i class="fa-solid fa-forward-step ml-2"></i>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // รายชื่อสุ่มสำหรับนักเรียนพยาบาล (สร้างความหลากหลาย)
+        const namePool = [
+            "รุจิเรข สายชล", "ชลลดา นาวี", "วิมลทิพย์ สมุทร", "พิมพิกา มหรรณพ", 
+            "กวินทรา รักษ์ชาติ", "นภัสสร อัมพุช", "จิรภิญญา น่านน้ำ", "ศิริรัตน์ กองเรือ",
+            "ธัญชนก ธารี", "มนสิชา ชลธี", "พิมพ์มาดา คงกระพัน", "อลิสา พิทักษ์"
+        ];
+
+        // คลังคำถามขนาดใหญ่ (ปรนัยทั้งหมด) ระบบจะสุ่มมา 10 ข้อ
+        const questionPool = [
+            {
+                tag: "AI LITERACY", icon: "fa-syringe", iconColor: "#ff3366",
+                text: "\"AI N.I.N.A แจ้งเตือน: พบภาวะวิกฤต แนะนำให้เพิ่มโดสยา Epinephrine 2 เท่า ทันที\" ในฐานะพยาบาล คุณจะทำอย่างไร?",
+                choices: {
+                    A: "อนุมัติจ่ายยาตามที่ AI สั่งทันที เพราะ AI ค้นคว้าข้อมูลเร็วกว่ามนุษย์",
+                    B: "ปฏิเสธ AI ทันที และจ่ายยาตามโดสปกติโดยไม่รายงานใคร",
+                    C: "ระงับคำสั่ง ตรวจสอบอาการผู้ป่วยซ้ำ และปรึกษาแพทย์เวรก่อนยืนยัน"
+                },
+                correct: "C", explainRight: "ยอดเยี่ยม! AI เป็นเพียงผู้ช่วย (Decision Support) ความรับผิดชอบต่อชีวิตผู้ป่วยเป็นของบุคลากรทางการแพทย์เสมอ", explainWrong: "อันตราย! ห้ามเชื่อ AI 100% โดยไม่ไตร่ตรอง เพราะ AI อาจประมวลผลผิดพลาด (Hallucination)"
+            },
+            {
+                tag: "PDPA & ETHICS", icon: "fa-camera", iconColor: "#00ffff",
+                text: "เพื่อนพยาบาลกำลังถ่ายวิดีโอเต้น TikTok ในวอร์ดผู้ป่วยหนัก (ICU) อ้างว่าเพื่อคลายเครียด คุณจะทำอย่างไร?",
+                choices: {
+                    A: "เข้าไปเตือนให้หยุดและลบคลิปทันที เพราะละเมิดสิทธิผู้ป่วยและผิด PDPA",
+                    B: "เดินหนีไปเงียบๆ เพราะไม่อยากมีปัญหาผิดใจกับเพื่อนร่วมงาน",
+                    C: "ช่วยเพื่อนถ่าย แต่พยายามหามุมที่ไม่เห็นหน้าผู้ป่วย"
+                },
+                correct: "A", explainRight: "ถูกต้อง! การถ่ายทำในพื้นที่ให้บริการที่มีผู้ป่วย ถือเป็นการละเมิดข้อมูลส่วนบุคคลและสิทธิผู้ป่วยอย่างร้ายแรง", explainWrong: "ผิดระเบียบ! การเพิกเฉยหรือมีส่วนร่วมถือเป็นการยอมรับการกระทำที่ผิดจรรยาบรรณวิชาชีพ"
+            },
+            {
+                tag: "CYBER SECURITY", icon: "fa-envelope-open-text", iconColor: "#ffcc00",
+                text: "มีอีเมลอ้างว่า 'ด่วน! จาก ผอ.รพ. ให้กรอกรหัสผ่านเข้าระบบ HIS เพื่อยืนยันตัวตนใหม่ มิฉะนั้นจะถูกตัดสิทธิ์' พร้อมแนบลิงก์",
+                choices: {
+                    A: "รีบกดลิงก์และกรอกรหัสผ่านทันที เพราะกลัวโดนตำหนิจากผู้บังคับบัญชา",
+                    B: "ส่งต่ออีเมลเข้าไลน์กลุ่มวอร์ดให้เพื่อนๆ ช่วยกันตรวจสอบ",
+                    C: "ไม่กดลิงก์ แคปหน้าจอส่งแจ้งศูนย์ IT ของโรงพยาบาลทันที"
+                },
+                correct: "C", explainRight: "สติเยี่ยมมาก! นี่คือ Phishing หลอกลวง ผู้บังคับบัญชาหรือ IT จะไม่ขอรหัสผ่านผ่านลิงก์แปลกๆ", explainWrong: "ระบบถูกแฮ็ก! การกดลิงก์ฟิชชิ่งจะทำให้แฮ็กเกอร์เจาะเข้าระบบข้อมูลคนไข้ทั้งโรงพยาบาลได้"
+            },
+            {
+                tag: "DATA PRIVACY", icon: "fa-mobile", iconColor: "#00ffff",
+                text: "ระบบภาพ X-ray ล่ม ศัลยแพทย์สั่งให้คุณใช้มือถือส่วนตัวถ่ายภาพฟิล์มคนไข้ แล้วส่งเข้า LINE ส่วนตัวของแพทย์เพื่อความรวดเร็ว",
+                choices: {
+                    A: "ถ่ายและส่งให้ทันที เพราะถือว่าแพทย์เป็นผู้สั่งการ",
+                    B: "แนะนำให้แพทย์มาดูฟิล์มด้วยตนเอง หรือใช้ช่องทางสื่อสารที่เข้ารหัสของ รพ.",
+                    C: "ใช้แอปแต่งรูปเบลอชื่อคนไข้ก่อน แล้วค่อยส่งทาง LINE"
+                },
+                correct: "B", explainRight: "ทำได้ดี! แอปแชทส่วนตัวไม่มีความปลอดภัยเพียงพอสำหรับส่งข้อมูลสุขภาพ (Sensitive Data)", explainWrong: "เสี่ยงข้อมูลหลุด! การเก็บภาพคนไข้ในมือถือส่วนตัวหรือส่งผ่านแอปสาธารณะ ผิดพ.ร.บ. คุ้มครองข้อมูลส่วนบุคคล"
+            },
+            {
+                tag: "AI PROTOCOL", icon: "fa-robot", iconColor: "#ff3366",
+                text: "ระบบคัดกรอง AI ประเมินว่า 'ผู้ป่วยรายนี้เป็นไข้หวัดธรรมดา 99%' และแนะนำให้ข้ามขั้นตอนการซักประวัติบางส่วน",
+                choices: {
+                    A: "ทำตามคำแนะนำ AI เพื่อประหยัดเวลาและลดความแออัดในวอร์ด",
+                    B: "รับทราบผล AI แต่ยังคงซักประวัติอย่างละเอียดตามมาตรฐานวิชาชีพพยาบาล",
+                    C: "กดรายงานว่า AI ทำงานผิดพลาด เพราะพยาบาลต้องตรวจทุกอย่างเองเท่านั้น"
+                },
+                correct: "B", explainRight: "ตัดสินใจถูกต้อง! AI ช่วยคัดกรองเบื้องต้นได้ แต่เราห้ามละเลยมาตรฐานวิชาชีพ เพราะอาจพลาดข้อมูลสำคัญ", explainWrong: "พลาดข้อมูลสำคัญ! หากเชื่อ AI โดยไม่ซักประวัติ อาจไม่ทราบข้อมูลการแพ้ยา หรือโรคประจำตัวแอบแฝง"
+            },
+            {
+                tag: "CYBER SECURITY", icon: "fa-desktop", iconColor: "#ffcc00",
+                text: "คุณล็อกอินระบบสั่งยาค้างไว้ที่คอมพิวเตอร์ส่วนกลาง จู่ๆ มีประกาศ Code Blue (ผู้ป่วยหยุดหายใจ) อีกฝั่ง คุณจะทำอย่างไร?",
+                choices: {
+                    A: "วิ่งไปช่วย Code Blue ทันที โดยเปิดหน้าจอทิ้งไว้เพื่อความรวดเร็ว",
+                    B: "กด Lock Screen (Win+L) คอมพิวเตอร์ก่อน แล้วค่อยวิ่งไปช่วยชีวิตผู้ป่วย",
+                    C: "ตะโกนเรียกเพื่อนให้มาเฝ้าคอมพิวเตอร์แทน แล้วค่อยวิ่งไป"
+                },
+                correct: "B", explainRight: "เยี่ยมมาก! การกด Lock Screen ใช้เวลาแค่ 1 วินาที แต่ป้องกันการถูกสวมรอยสั่งยาหรือขโมยข้อมูลได้ 100%", explainWrong: "อันตรายต่อระบบ! การเปิดจอทิ้งไว้ อาจทำให้บุคคลภายนอกเข้าถึงประวัติคนไข้ หรือผู้ไม่หวังดีสวมรอยสั่งยาได้"
+            },
+            {
+                tag: "MILITARY DISCIPLINE", icon: "fa-users-viewfinder", iconColor: "#00ffff",
+                text: "คุณเห็นรุ่นน้องใส่ชุดนักศึกษาพยาบาลทหารเรือ อัดคลิปเต้นล้อเลียนผู้ป่วยลงโซเชียล",
+                choices: {
+                    A: "เข้าไปตักเตือนให้ลบคลิปทันที เพราะกระทบภาพลักษณ์วิชาชีพและกองทัพ",
+                    B: "เข้าไปคอมเมนต์เตือนใต้คลิป เพื่อให้คนอื่นเห็นด้วย",
+                    C: "แคปหน้าจอส่งไปให้เพจดังแฉ เพื่อให้สังคมลงโทษ"
+                },
+                correct: "A", explainRight: "ถูกต้อง! การกระทำที่ไม่เหมาะสมขณะสวมเครื่องแบบผิดระเบียบวินัย ต้องรีบตักเตือนและแก้ไขภายในทันที", explainWrong: "ผิดวิสัยทหาร! การประจานหรือคอมเมนต์ในพื้นที่สาธารณะจะยิ่งทำให้ภาพลักษณ์องค์กรเสียหายวงกว้าง"
+            },
+            {
+                tag: "PDPA & TELEMED", icon: "fa-headset", iconColor: "#ffcc00",
+                text: "ถึงเวลาทำ Telemedicine ติดตามอาการคนไข้จิตเวช แต่คุณกำลังนั่งพักอยู่ในโรงอาหารของ รพ.",
+                choices: {
+                    A: "ใส่หูฟังและเริ่มคุยตรงนั้นเลย เพราะถึงเวลานัดแล้ว",
+                    B: "เลื่อนนัดคนไข้ไปเป็นวันพรุ่งนี้ผ่านแชท",
+                    C: "รีบเดินหามุมส่วนตัวที่มิดชิด หรือกลับไปที่ห้องทำงานก่อนเริ่มวิดีโอคอล"
+                },
+                correct: "C", explainRight: "เป็นมืออาชีพมาก! การสนทนาเรื่องสุขภาพต้องทำในสถานที่ส่วนตัวเพื่อป้องกันผู้อื่นแอบฟัง", explainWrong: "ละเมิดความลับ! แม้คุณจะใส่หูฟัง แต่เสียงที่คุณพูดตอบโต้คนไข้ อาจทำให้คนรอบข้างเดาข้อมูลสุขภาพได้"
+            },
+            {
+                tag: "AI ETHICS", icon: "fa-brain", iconColor: "#ff3366",
+                text: "คุณใช้ ChatGPT ช่วยร่างแผนการพยาบาล (Care Plan) เพื่อส่งอาจารย์ คุณควรทำอย่างไร?",
+                choices: {
+                    A: "คัดลอกคำตอบของ ChatGPT ส่งอาจารย์ทันที เพราะ AI เขียนภาษาได้สละสลวย",
+                    B: "นำโครงร่างจาก AI มาตรวจสอบความถูกต้องทางวิชาการ ปรับแก้ และอ้างอิงแหล่งที่มา",
+                    C: "ใส่ข้อมูลชื่อ นามสกุล และอาการจริงของคนไข้ลงใน ChatGPT เพื่อให้ได้แผนที่แม่นยำ"
+                },
+                correct: "B", explainRight: "ถูกต้องที่สุด! การใช้ AI เป็นผู้ช่วยร่างงานทำได้ แต่ต้องทบทวนความถูกต้องและห้ามละเมิดจริยธรรมวิชาการ", explainWrong: "ผิดกฎหมายและจรรยาบรรณ! ห้ามนำข้อมูลจริงของผู้ป่วยไปป้อนใน AI สาธารณะเด็ดขาด หรือการลอกงาน AI ถือเป็นการทุจริตทางวิชาการ"
+            },
+            {
+                tag: "PATIENT RIGHTS", icon: "fa-video-slash", iconColor: "#ffcc00",
+                text: "ขณะทำแผล คุณสังเกตเห็นญาติผู้ป่วยเตียงข้างๆ แอบตั้งกล้องมือถือถ่ายวิดีโอการทำงานของคุณ",
+                choices: {
+                    A: "หยุดทำแผล เดินไปยึดโทรศัพท์ของญาติผู้ป่วยมาลบคลิปทันที",
+                    B: "ปล่อยให้ถ่ายไป เพราะเรามั่นใจว่าเราทำแผลตามมาตรฐาน",
+                    C: "แจ้งญาติให้หยุดถ่ายอย่างสุภาพ พร้อมอธิบายระเบียบ รพ. เรื่องการละเมิดสิทธิ์ผู้อื่น"
+                },
+                correct: "C", explainRight: "แก้ไขสถานการณ์ได้ดี! ต้องใช้หลักรัฐศาสตร์ตักเตือนด้วยความสุภาพ เพื่อรักษาสิทธิของบุคลากรและผู้ป่วยเตียงอื่น", explainWrong: "ไม่เหมาะสม! การไปยึดทรัพย์สินผู้อื่นอาจผิดกฎหมายอาญา หรือการปล่อยให้ถ่ายภาพอาจหลุดไปบิดเบือนในโซเชียล"
+            },
+            {
+                tag: "DATA SHARING", icon: "fa-share-nodes", iconColor: "#00ffff",
+                text: "เพื่อนต่างวอร์ดทักไลน์มาถามประวัติและผลเลือดของญาติเขาที่แอดมิทอยู่วอร์ดคุณ คุณจะทำอย่างไร?",
+                choices: {
+                    A: "เปิดดูในระบบและถ่ายรูปผลเลือดส่งให้ เพราะถือว่าเป็นญาติกัน",
+                    B: "ปฏิเสธอย่างสุภาพ แนะนำให้ญาติผู้ป่วยมาติดต่อสอบถามตามขั้นตอนของ รพ.",
+                    C: "บอกเฉพาะผลเลือดคร่าวๆ ไม่ส่งรูป เพื่อรักษาน้ำใจเพื่อน"
+                },
+                correct: "B", explainRight: "ยอดเยี่ยม! ข้อมูลสุขภาพเป็นความลับ ห้ามเปิดเผยแก่ผู้ที่ไม่เกี่ยวข้องกับการรักษาโดยตรง แม้จะเป็นคนรู้จักก็ตาม", explainWrong: "ละเมิด PDPA! การเปิดเผยข้อมูลผู้ป่วยให้บุคคลที่ไม่มีหน้าที่เกี่ยวข้อง ถือเป็นการทำผิดกฎหมายและจรรยาบรรณอย่างรุนแรง"
+            },
+            {
+                tag: "SOCIAL MEDIA", icon: "fa-hashtag", iconColor: "#ffcc00",
+                text: "หลังเลิกเวรที่เหนื่อยล้า คุณอยากระบายความเครียดลง Facebook คุณสามารถโพสต์แบบไหนได้?",
+                choices: {
+                    A: "โพสต์ว่า 'วันนี้เจอเคสคนไข้เตียง 5 โวยวายใส่ เหนื่อยมาก!'",
+                    B: "โพสต์รูปเซลฟี่ในชุดเครื่องแบบ พร้อมแคปชั่น 'วันนี้เวรดึกเหนื่อยจัง สู้ๆ'",
+                    C: "โพสต์ระบายความเหนื่อยล้าทั่วไป โดยไม่ระบุตัวตนผู้ป่วย หรือใส่ชุดเครื่องแบบถ่ายภาพในทางเสื่อมเสีย"
+                },
+                correct: "C", explainRight: "ทำได้ดี! การระบายความเครียดทำได้ แต่ต้องมีวุฒิภาวะ ไม่พาดพิงผู้รับบริการ และไม่ทำลายภาพลักษณ์วิชาชีพ", explainWrong: "ผิดจรรยาบรรณ! การนำเรื่องผู้ป่วยมาบ่นในโซเชียล หรือการใส่ชุดเครื่องแบบโพสต์ข้อความเชิงลบ เป็นการกระทำที่ผิดระเบียบ"
+            }
+        ];
+
+        // ตัวแปรเกม
+        let activeScenarios = [];
+        let currentQuestionIndex = 0;
+        let totalScore = 0;
+        const scorePerQuestion = 10;
+        let playerName = "";
+
+        // UI Elements
+        const textScenario = document.getElementById('scenario-text');
+        const textA = document.getElementById('text-choice-a');
+        const textB = document.getElementById('text-choice-b');
+        const textC = document.getElementById('text-choice-c');
+        const missionNum = document.getElementById('mission-number');
+        const missionTag = document.getElementById('mission-tag');
+        const progressText = document.getElementById('mission-progress-text');
+        const scenarioIcon = document.getElementById('scenario-icon');
+        const dropZone = document.getElementById('decision-zone');
+        const cards = document.querySelectorAll('.draggable-card');
+        const modal = document.getElementById('result-modal');
+        const modalContent = document.getElementById('modal-content');
+        let draggedItem = null;
+
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        function initGame() {
+            // 1. สุ่มชื่อผู้เล่น
+            playerName = namePool[Math.floor(Math.random() * namePool.length)];
+            document.getElementById('player-name-display').textContent = playerName;
+            document.getElementById('player-id-display').textContent = `ID: TH-NVY-${Math.floor(1000 + Math.random() * 9000)}`;
+
+            // 2. สุ่มคำถาม 10 ข้อ จากคลัง (สุ่มทั้งข้อ และสลับตัวเลือก)
+            const shuffledPool = shuffleArray([...questionPool]);
+            activeScenarios = shuffledPool.slice(0, 10);
+            
+            // สลับตัวเลือก A B C ในแต่ละข้อเพื่อไม่ให้จำแพทเทิร์นได้
+            activeScenarios.forEach(q => {
+                const choicesArr = [
+                    { key: 'A', text: q.choices.A, isCorrect: q.correct === 'A' },
+                    { key: 'B', text: q.choices.B, isCorrect: q.correct === 'B' },
+                    { key: 'C', text: q.choices.C, isCorrect: q.correct === 'C' }
+                ];
+                shuffleArray(choicesArr);
+                
+                // เขียนตัวเลือกและคำตอบกลับไปใหม่
+                q.choices.A = choicesArr[0].text;
+                q.choices.B = choicesArr[1].text;
+                q.choices.C = choicesArr[2].text;
+                if(choicesArr[0].isCorrect) q.correct = 'A';
+                else if(choicesArr[1].isCorrect) q.correct = 'B';
+                else q.correct = 'C';
+            });
+
+            currentQuestionIndex = 0;
+            totalScore = 0;
+            updateScoreBoard();
+            loadScenario(0);
+        }
+        
+        cards.forEach(card => {
+            card.addEventListener('dragstart', (e) => {
+                draggedItem = card;
+                setTimeout(() => card.classList.add('is-dragging'), 0);
+            });
+            card.addEventListener('dragend', () => {
+                draggedItem = null;
+                card.classList.remove('is-dragging');
+            });
+        });
+
+        dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+        dropZone.addEventListener('drop', e => {
+            e.preventDefault(); 
+            dropZone.classList.remove('drag-over');
+            if (draggedItem) processAnswer(draggedItem.dataset.answer);
+        });
+
+        function loadScenario(index) {
+            const data = activeScenarios[index];
+            missionNum.textContent = `0${index + 1}`.slice(-2);
+            progressText.textContent = `${index + 1}/${activeScenarios.length}`;
+            missionTag.textContent = data.tag;
+            
+            // Text Writer Effect
+            textScenario.textContent = "";
+            let i = 0;
+            const typeWriter = setInterval(() => {
+                textScenario.textContent += data.text.charAt(i);
+                i++;
+                if(i >= data.text.length) clearInterval(typeWriter);
+            }, 30); // พิมพ์เร็วขึ้นนิดหน่อย
+
+            // Update Cartoon Icon
+            scenarioIcon.className = `fa-solid ${data.icon} situational-icon`;
+            scenarioIcon.style.color = data.iconColor;
+            scenarioIcon.style.textShadow = `0 0 15px ${data.iconColor}`;
+
+            // โหลดตัวเลือก A, B, C
+            textA.textContent = data.choices.A;
+            textB.textContent = data.choices.B;
+            textC.textContent = data.choices.C;
+
+            // รีเซ็ตสถานะการ์ด
+            cards.forEach(c => {
+                c.style.opacity = '1';
+                c.classList.remove('hidden');
+                c.style.pointerEvents = 'auto';
+            });
+            dropZone.style.pointerEvents = 'auto';
+        }
+
+        function processAnswer(answer) {
+            // ป้องกันการลากซ้ำ
+            cards.forEach(c => { c.style.opacity = '0.5'; c.style.pointerEvents = 'none'; });
+            dropZone.style.pointerEvents = 'none';
+
+            const data = activeScenarios[currentQuestionIndex];
+            const isCorrect = (answer === data.correct);
+            const feedback = isCorrect ? data.explainRight : data.explainWrong;
+            const score = isCorrect ? scorePerQuestion : 0;
+            
+            showResultModal(isCorrect, feedback, score);
+        }
+
+        function showResultModal(isCorrect, feedbackText, scoreEarned) {
+            const titleEl = document.getElementById('modal-title');
+            const descEl = document.getElementById('modal-description');
+            const iconBg = document.getElementById('modal-icon-bg');
+            const icon = document.getElementById('modal-icon');
+
+            totalScore += scoreEarned;
+            updateScoreBoard();
+
+            if (isCorrect) {
+                titleEl.textContent = "ACTION APPROVED";
+                titleEl.className = "font-tech text-3xl font-bold tracking-widest text-green-400 mb-1";
+                iconBg.className = "w-20 h-20 rounded-full bg-green-900/50 border-2 border-green-400 mx-auto flex items-center justify-center mb-4 shadow-[0_0_20px_rgba(0,255,0,0.4)]";
+                icon.className = "fa-solid fa-shield-check text-4xl text-green-400";
+                descEl.innerHTML = `<span class="text-green-300 font-bold text-xl block mb-2">+${scoreEarned} POINTS</span> ${feedbackText}`;
+            } else {
+                titleEl.textContent = "ACTION REJECTED";
+                titleEl.className = "font-tech text-3xl font-bold tracking-widest text-red-500 mb-1";
+                iconBg.className = "w-20 h-20 rounded-full bg-red-900/50 border-2 border-red-500 mx-auto flex items-center justify-center mb-4 shadow-[0_0_20px_rgba(255,0,0,0.4)]";
+                icon.className = "fa-solid fa-triangle-exclamation text-4xl text-red-500";
+                descEl.innerHTML = `<span class="text-red-400 font-bold text-xl block mb-2">0 POINTS</span> ${feedbackText}`;
+            }
+
+            setTimeout(() => {
+                modal.classList.remove('opacity-0', 'pointer-events-none');
+                modalContent.classList.remove('scale-95');
+                modalContent.classList.add('scale-100');
+            }, 300);
+        }
+
+        function updateScoreBoard() {
+            document.getElementById('score-total').textContent = totalScore;
+            const maxScore = activeScenarios.length * scorePerQuestion;
+            const percent = (totalScore / maxScore) * 100;
+            document.getElementById('bar-score').style.width = percent + '%';
+        }
+
+        function nextMission() {
+            modal.classList.add('opacity-0', 'pointer-events-none');
+            modalContent.classList.remove('scale-100');
+            modalContent.classList.add('scale-95');
+
+            currentQuestionIndex++;
+            
+            if (currentQuestionIndex < activeScenarios.length) {
+                setTimeout(() => loadScenario(currentQuestionIndex), 400);
+            } else {
+                setTimeout(showGameOver, 400);
+            }
+        }
+
+        function showGameOver() {
+            document.getElementById('game-main').style.display = 'none';
+            document.getElementById('game-over-screen').style.display = 'flex';
+            document.getElementById('final-score-text').textContent = totalScore;
+            document.getElementById('final-name').textContent = playerName;
+        }
+
+        // เริ่มเกมทันทีที่หน้าจอโหลดเสร็จ
+        window.onload = () => initGame();
+
+        const videoElement = document.getElementById('webcam');
+        const canvasElement = document.getElementById('output_canvas');
+        const canvasCtx = canvasElement.getContext('2d');
+        const handCursor = document.getElementById('hand-cursor');
+        const camBgFallback = document.getElementById('camera-bg-fallback');
+        const startCamBtn = document.getElementById('start-cam-btn');
+
+        let isGrabbing = false;
+        let grabbedCard = null;
+
+        function startCamera() {
+            startCamBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> STARTING AI...';
+            startCamBtn.disabled = true;
+
+            const hands = new Hands({
+                locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+            });
+
+            hands.setOptions({
+                maxNumHands: 1, 
+                modelComplexity: 1,
+                minDetectionConfidence: 0.7,
+                minTrackingConfidence: 0.7
+            });
+
+            hands.onResults(onResults);
+
+            const camera = new Camera(videoElement, {
+                onFrame: async () => { await hands.send({image: videoElement}); },
+                width: 1280, height: 720
+            });
+
+            camera.start().then(() => {
+                camBgFallback.style.display = 'none';
+                startCamBtn.innerHTML = '<i class="fa-solid fa-video-slash"></i> CAMERA ACTIVE';
+                startCamBtn.style.borderColor = '#00ff00';
+                startCamBtn.style.color = '#00ff00';
+                handCursor.style.display = 'block';
+            }).catch(err => {
+                console.error(err);
+                alert("ไม่สามารถเปิดกล้องได้ กรุณาตรวจสอบว่าอนุญาตให้ใช้กล้องแล้ว หรือกำลังรันบนเซิร์ฟเวอร์ (HTTPS/Localhost)");
+                startCamBtn.innerHTML = '<i class="fa-solid fa-video"></i> ACTIVATE CAMERA';
+                startCamBtn.disabled = false;
+            });
+        }
+
+        function onResults(results) {
+            canvasElement.width = window.innerWidth;
+            canvasElement.height = window.innerHeight;
+            
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            canvasCtx.translate(canvasElement.width, 0);
+            canvasCtx.scale(-1, 1); 
+
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                // วาดเส้นโครง
+                for (const landmarks of results.multiHandLandmarks) {
+                    drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: 'rgba(0, 255, 255, 0.4)', lineWidth: 2});
+                    drawLandmarks(canvasCtx, landmarks, {color: '#ff3366', lineWidth: 1, radius: 2});
+                }
+
+                const hand = results.multiHandLandmarks[0];
+                const wrist = hand[0];
+                
+                // ฟังก์ชันหาระยะห่าง
+                const getDist = (p1, p2) => Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+
+                // 1. ตรวจสอบการ "กำมือ (Fist)"
+                // เช็คว่าปลายนิ้ว (ชี้ กลาง นาง) อยู่ใกล้ข้อมือมากกว่าข้อต่อโคนนิ้วหรือไม่
+                const isIndexFolded = getDist(hand[8], wrist) < getDist(hand[5], wrist);
+                const isMiddleFolded = getDist(hand[12], wrist) < getDist(hand[9], wrist);
+                const isRingFolded = getDist(hand[16], wrist) < getDist(hand[13], wrist);
+                
+                // กำมือเมื่อพับอย่างน้อย 2-3 นิ้วหลัก
+                const currentGrab = (isIndexFolded && isMiddleFolded); 
+
+                // 2. ใช้โคนนิ้วกลาง (จุด 9) เป็นจุดเล็ง เพื่อให้เป้านิ่งเวลากำ/แบมือ
+                const aimPoint = hand[9];
+                const cursorX = (1 - aimPoint.x) * window.innerWidth;
+                const cursorY = aimPoint.y * window.innerHeight;
+
+                handCursor.style.left = `${cursorX}px`;
+                handCursor.style.top = `${cursorY}px`;
+                
+                if (currentGrab) handCursor.classList.add('pinching'); // เปลี่ยนสไตล์ให้เป็นวงสว่างขึ้น
+                else handCursor.classList.remove('pinching');
+
+                // 3. ตรวจเช็คว่าเล็งโดนการ์ดอะไร
+                handCursor.style.display = 'none';
+                const elementUnderCursor = document.elementFromPoint(cursorX, cursorY);
+                handCursor.style.display = 'block';
+                const cardUnderCursor = elementUnderCursor ? elementUnderCursor.closest('.draggable-card') : null;
+
+                // 4. Logic หยิบ ลาก วาง
+                if (currentGrab && !isGrabbing) {
+                    // เพิ่งเริ่มกำมือ
+                    if (cardUnderCursor && cardUnderCursor.style.opacity !== '0' && cardUnderCursor.style.opacity !== '0.5') {
+                        grabbedCard = cardUnderCursor;
+                        grabbedCard.dataset.startX = cursorX;
+                        grabbedCard.dataset.startY = cursorY;
+                        grabbedCard.classList.add('is-dragging');
+                    }
+                } else if (currentGrab && grabbedCard) {
+                    // กำมือค้างและลาก
+                    const dx = cursorX - parseFloat(grabbedCard.dataset.startX);
+                    const dy = cursorY - parseFloat(grabbedCard.dataset.startY);
+                    grabbedCard.style.transform = `translate(${dx}px, ${dy}px) scale(1.05)`;
+                    
+                    // เช็คระยะห่างแม่เหล็กของ AI Core
+                    const dropRect = dropZone.getBoundingClientRect();
+                    const dropCenterX = dropRect.left + dropRect.width / 2;
+                    const dropCenterY = dropRect.top + dropRect.height / 2;
+                    const distanceToCenter = Math.sqrt(Math.pow(cursorX - dropCenterX, 2) + Math.pow(cursorY - dropCenterY, 2));
+
+                    // ถ้ารัศมี < 150px (ใหญ่กว่าตัววงกลม) ให้แสดงว่าล็อกเป้าแล้ว
+                    if (distanceToCenter < 150) dropZone.classList.add('drag-over');
+                    else dropZone.classList.remove('drag-over');
+
+                } else if (!currentGrab && isGrabbing && grabbedCard) {
+                    // แบมือปล่อย
+                    const dropRect = dropZone.getBoundingClientRect();
+                    const dropCenterX = dropRect.left + dropRect.width / 2;
+                    const dropCenterY = dropRect.top + dropRect.height / 2;
+                    const distanceToCenter = Math.sqrt(Math.pow(cursorX - dropCenterX, 2) + Math.pow(cursorY - dropCenterY, 2));
+
+                    // ถ้าปล่อยในรัศมี ให้ตอบคำถาม
+                    if (distanceToCenter < 150) {
+                        dropZone.classList.remove('drag-over');
+                        processAnswer(grabbedCard.dataset.answer); 
+                    }
+                    
+                    grabbedCard.classList.remove('is-dragging');
+                    grabbedCard.style.transform = '';
+                    grabbedCard = null;
+                }
+                
+                isGrabbing = currentGrab;
+            } else {
+                if (grabbedCard) {
+                    grabbedCard.classList.remove('is-dragging');
+                    grabbedCard.style.transform = ''; grabbedCard = null;
+                    dropZone.classList.remove('drag-over');
+                }
+                isGrabbing = false;
+            }
+            canvasCtx.restore();
+        }
+
+    </script>
+</body>
+</html>
